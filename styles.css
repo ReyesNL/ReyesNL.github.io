@@ -934,13 +934,190 @@ button:focus-visible {
   cursor: grabbing;
 }
 
+/* ---------- Pastel en pixel art ---------- */
+
+/* --p es el ancho del pastel; Cinnamoroll mide un tercio de eso */
+.seccion-pastel {
+  --p: min(500px, calc(100vw - 32px), calc((100vh - 200px) / 1.03));
+  position: relative;
+  isolation: isolate;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 40px 16px;
+  overflow: hidden;
+  /* Del blanco de la caja al rosado del corazón de notas */
+  background: linear-gradient(#fff, #fde8ef 30vh);
+}
+
+@supports (height: 100dvh) {
+  .seccion-pastel {
+    --p: min(500px, calc(100vw - 32px), calc((100dvh - 200px) / 1.03));
+  }
+}
+
+/* Chispitas de colores en pixel art, como las del pastel; se desvanecen arriba y abajo */
+.seccion-pastel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='144' height='144' shape-rendering='crispEdges'%3E%3Cg opacity='.5'%3E%3Cpath fill='%23f6a04d' d='M20 20h4v12h-4zM16 24h12v4H16z'/%3E%3Cpath fill='%23b99cf0' d='M68 52h4v12h-4zM64 56h12v4H64z'/%3E%3Cpath fill='%23f27aa5' d='M112 84h4v12h-4zM108 88h12v4h-12z'/%3E%3Cpath fill='%2357c2cf' d='M92 14h8v8h-8zM8 128h4v4H8z'/%3E%3Cpath fill='%23f6cd57' d='M36 100h8v8h-8zM128 48h4v4h-4z'/%3E%3Cpath fill='%238fb3f0' d='M124 124h8v8h-8zM52 8h4v4h-4z'/%3E%3Cpath fill='%23f49ab4' d='M84 112h4v4h-4zM92 112h4v4h-4zM80 116h20v4H80zM84 120h12v4H84zM88 124h4v4h-4z'/%3E%3C/g%3E%3C/svg%3E") 0 0 / 144px 144px;
+  -webkit-mask-image: linear-gradient(transparent, #000 35vh, #000 calc(100% - 25vh), transparent);
+  mask-image: linear-gradient(transparent, #000 35vh, #000 calc(100% - 25vh), transparent);
+  pointer-events: none;
+}
+
+/* Luz cálida detrás del pastel cuando ya están todas las velas prendidas */
+.seccion-pastel::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: -1;
+  width: calc(var(--p) * 1.8);
+  aspect-ratio: 1;
+  background: radial-gradient(circle, rgba(255, 196, 120, 0.45), rgba(255, 190, 150, 0.18) 45%, transparent 70%);
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  transition: opacity 1s ease;
+  pointer-events: none;
+}
+
+.seccion-pastel.encendido::after {
+  opacity: 1;
+}
+
+.pastel {
+  position: relative;
+  isolation: isolate;
+  width: var(--p);
+  aspect-ratio: 1020 / 1052;
+}
+
+/* Sombrita debajo del plato */
+.pastel::after {
+  content: "";
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  bottom: -3%;
+  height: 9%;
+  z-index: -1;
+  background: radial-gradient(ellipse closest-side, rgba(120, 50, 80, 0.2), transparent);
+}
+
+.pastel-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Llama de cada vela: apagada no se ve; al prenderse aparece desde la mecha */
+.llama {
+  position: absolute;
+  aspect-ratio: 103 / 120;
+  transform: translate(-50%, -100%) scale(0.2);
+  transform-origin: 50% 100%;
+  opacity: 0;
+  transition: opacity 0.25s ease, transform 0.3s cubic-bezier(0.3, 1.6, 0.5, 1);
+  pointer-events: none;
+}
+
+.llama.encendida {
+  opacity: 1;
+  transform: translate(-50%, -100%) scale(1);
+}
+
+.llama img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Brillo alrededor de la llama */
+.llama::before,
+.cinnamoroll::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 60%;
+  z-index: -1;
+  width: 300%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 222, 130, 0.75), rgba(255, 170, 60, 0.28) 35%, transparent 68%);
+  transform: translate(-50%, -50%);
+}
+
+.cinnamoroll {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 3;
+  width: max(92px, calc(var(--p) * 0.34));
+  aspect-ratio: 484 / 393;
+  cursor: grab;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  filter: drop-shadow(0 4px 6px rgba(120, 60, 90, 0.18));
+}
+
+.cinnamoroll::before {
+  left: 49.6%;
+  top: 8%;
+  width: 34%;
+}
+
+.cinnamoroll.agarrado {
+  cursor: grabbing;
+}
+
+.cinnamoroll:focus-visible {
+  outline: 2px dashed #be5a85;
+  outline-offset: 4px;
+  border-radius: 8px;
+}
+
+.cinnamoroll img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  -webkit-user-drag: none;
+}
+
+.pista-pastel {
+  position: relative;
+  font-size: 0.9rem;
+  color: #be5a85;
+  text-align: center;
+}
+
+/* En pantallas angostas Cinnamoroll empieza debajo del aviso: se le deja espacio */
+@media (max-width: 900px) {
+  .seccion-pastel {
+    padding-bottom: calc(max(92px, var(--p) * 0.34) * 393 / 484 + 40px);
+  }
+}
+
 /* ---------- Corazón de notas ---------- */
 
 /* La sección es alta para que haya recorrido; el escenario se queda fijo mientras se arma */
 .seccion-notas {
   position: relative;
   height: 260vh;
-  background: linear-gradient(#fff, #fde8ef 40vh);
+  /* Sigue el rosado con el que termina la sección del pastel */
+  background: #fde8ef;
 }
 
 .escenario-notas {

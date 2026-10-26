@@ -399,8 +399,10 @@ async function quitarCinta() {
   await esperar(2700);
   soltarCorazones();
 
-  // Ya se puede bajar al corazón de notas
+  // Ya se puede bajar al pastel y al corazón de notas
   await esperar(600);
+  seccionPastel.hidden = false;
+  colocarCinnamoroll();
   seccionNotas.hidden = false;
   seccionLibro.hidden = false;
   seccionSobre.hidden = false;
@@ -424,6 +426,256 @@ function soltarCorazones() {
     capaCorazones.appendChild(corazon);
   }
 }
+
+// ---------- Pastel en pixel art: Cinnamoroll prende las velas una por una ----------
+
+const seccionPastel = document.getElementById("seccionPastel");
+const pastel = document.getElementById("pastel");
+const cinnamoroll = document.getElementById("cinnamoroll");
+const pistaPastel = document.getElementById("pistaPastel");
+
+// Punta de la mecha de cada vela, en px de img/pastel.webp (1020 × 1052).
+// tam: tamaño de la llama (1 = las velas grandes de atrás)
+const PASTEL = { ancho: 1020, alto: 1052 };
+const LLAMA = { ancho: 103, alto: 120 };
+const VELAS = [
+  { x: 166.5, y: 248, tam: 1 }, // verde
+  { x: 510, y: 120, tam: 1 }, // roja
+  { x: 848.5, y: 224, tam: 1 }, // naranja
+  { x: 240.5, y: 612, tam: 0.4 }, // azul
+  { x: 512.5, y: 658, tam: 0.4 }, // morada
+  { x: 778.5, y: 613, tam: 0.4 } // roja chiquita
+];
+// Dónde está la llama de Cinnamoroll, en fracción de su imagen
+const FUEGO_CINNAMOROLL = { x: 0.496, y: 0.08 };
+
+const velas = VELAS.map((vela) => {
+  const llama = document.createElement("div");
+  llama.className = "llama";
+  llama.style.left = (vela.x / PASTEL.ancho) * 100 + "%";
+  // La base de la llama tapa un poquito la punta de la mecha
+  llama.style.top = ((vela.y + 5) / PASTEL.alto) * 100 + "%";
+  llama.style.width = ((LLAMA.ancho * vela.tam) / PASTEL.ancho) * 100 + "%";
+  llama.innerHTML = '<img src="img/llama.webp" alt="" draggable="false">';
+  pastel.appendChild(llama);
+  return { ...vela, el: llama, encendida: false };
+});
+
+// Esquina de arriba a la izquierda de Cinnamoroll (sin contar el giro), en px dentro de la sección
+let posCinnamoroll = { x: 0, y: 0 };
+let agarreCinnamoroll = null;
+let cinnamorollMovido = false;
+
+// Se balancea como los colgantes: cuelga del punto por donde se agarró ("eje", en fracción de la imagen)
+// y un peso que va debajo, con física, decide cuánto se inclina
+const pendulo = { eje: { x: 0.5, y: 0.3 }, giro: 0, peso: null, pesoAntes: null, ejeAntes: null, fuegoAntes: null, corriendo: false, tiempo: 0 };
+const GIRO_MAXIMO = 0.95; // unos 55°
+
+function largoPendulo() {
+  return cinnamoroll.offsetHeight * 0.55;
+}
+
+function ejeEnSeccion() {
+  return {
+    x: posCinnamoroll.x + cinnamoroll.offsetWidth * pendulo.eje.x,
+    y: posCinnamoroll.y + cinnamoroll.offsetHeight * pendulo.eje.y
+  };
+}
+
+// Dónde queda en la sección un punto de la imagen (en px, sin girar) con el giro actual
+function puntoCinnamoroll(x, y) {
+  const ox = cinnamoroll.offsetWidth * pendulo.eje.x;
+  const oy = cinnamoroll.offsetHeight * pendulo.eje.y;
+  const cos = Math.cos(pendulo.giro);
+  const sin = Math.sin(pendulo.giro);
+  return {
+    x: posCinnamoroll.x + ox + (x - ox) * cos - (y - oy) * sin,
+    y: posCinnamoroll.y + oy + (x - ox) * sin + (y - oy) * cos
+  };
+}
+
+function dibujarCinnamoroll() {
+  cinnamoroll.style.transformOrigin = `${pendulo.eje.x * 100}% ${pendulo.eje.y * 100}%`;
+  cinnamoroll.style.transform =
+    `translate(${posCinnamoroll.x.toFixed(1)}px, ${posCinnamoroll.y.toFixed(1)}px) rotate(${pendulo.giro.toFixed(4)}rad)`;
+}
+
+function moverCinnamoroll(x, y) {
+  const maxX = seccionPastel.clientWidth - cinnamoroll.offsetWidth;
+  const maxY = seccionPastel.clientHeight - cinnamoroll.offsetHeight;
+  posCinnamoroll = { x: Math.min(maxX, Math.max(0, x)), y: Math.min(maxY, Math.max(0, y)) };
+  dibujarCinnamoroll();
+}
+
+// Pone el peso colgando del eje con el giro actual, sin perder la velocidad que traía
+function colgarPeso() {
+  const largo = largoPendulo();
+  const eje = ejeEnSeccion();
+  const v = pendulo.peso ? { x: pendulo.peso.x - pendulo.pesoAntes.x, y: pendulo.peso.y - pendulo.pesoAntes.y } : { x: 0, y: 0 };
+  pendulo.peso = { x: eje.x - largo * Math.sin(pendulo.giro), y: eje.y + largo * Math.cos(pendulo.giro) };
+  pendulo.pesoAntes = { x: pendulo.peso.x - v.x, y: pendulo.peso.y - v.y };
+  pendulo.ejeAntes = eje;
+}
+
+function pasoPendulo(eje, dt) {
+  const p = pendulo.peso;
+  const q = pendulo.pesoAntes;
+  const vx = (p.x - q.x) * 0.992;
+  const vy = (p.y - q.y) * 0.992;
+  q.x = p.x;
+  q.y = p.y;
+  p.x += vx;
+  p.y += vy + GRAVEDAD * dt * dt;
+  // La barra no se estira y no deja que se dé la vuelta entero
+  const largo = largoPendulo();
+  const giro = Math.min(GIRO_MAXIMO, Math.max(-GIRO_MAXIMO, Math.atan2(eje.x - p.x, p.y - eje.y)));
+  p.x = eje.x - largo * Math.sin(giro);
+  p.y = eje.y + largo * Math.cos(giro);
+  pendulo.giro = giro;
+}
+
+function moverPendulo(ahora) {
+  const dt = pendulo.tiempo ? Math.min(0.05, (ahora - pendulo.tiempo) / 1000) : 1 / 60;
+  pendulo.tiempo = ahora;
+
+  // Pasos cortos; el eje va del lugar anterior al nuevo poco a poco para que el balanceo salga suave
+  const eje = ejeEnSeccion();
+  const desde = pendulo.ejeAntes || eje;
+  const pasos = Math.max(1, Math.round(dt * 120));
+  for (let i = 1; i <= pasos; i++) {
+    pasoPendulo({ x: desde.x + ((eje.x - desde.x) * i) / pasos, y: desde.y + ((eje.y - desde.y) * i) / pasos }, dt / pasos);
+  }
+  pendulo.ejeAntes = eje;
+  dibujarCinnamoroll();
+
+  // También prende las velas si la llama les pasa cerca mientras se balancea
+  const fuego = fuegoCinnamoroll();
+  revisarVelas(pendulo.fuegoAntes || fuego, fuego);
+  pendulo.fuegoAntes = fuego;
+
+  const velocidad = Math.hypot(pendulo.peso.x - pendulo.pesoAntes.x, pendulo.peso.y - pendulo.pesoAntes.y);
+  if (agarreCinnamoroll || Math.abs(pendulo.giro) > 0.003 || velocidad > 0.02) {
+    requestAnimationFrame(moverPendulo);
+  } else {
+    pendulo.corriendo = false;
+    pendulo.giro = 0;
+    dibujarCinnamoroll();
+  }
+}
+
+function arrancarPendulo() {
+  if (pendulo.corriendo) return;
+  pendulo.corriendo = true;
+  pendulo.tiempo = 0;
+  pendulo.fuegoAntes = fuegoCinnamoroll();
+  requestAnimationFrame(moverPendulo);
+}
+
+// Empieza a la derecha del pastel, abajo; si no hay espacio (celular), debajo del aviso
+function colocarCinnamoroll() {
+  if (seccionPastel.hidden) return;
+  if (cinnamorollMovido) {
+    moverCinnamoroll(posCinnamoroll.x, posCinnamoroll.y);
+    return;
+  }
+  const s = seccionPastel.getBoundingClientRect();
+  const r = pastel.getBoundingClientRect();
+  const w = cinnamoroll.offsetWidth;
+  const h = cinnamoroll.offsetHeight;
+  if (s.right - r.right >= w + 24) {
+    moverCinnamoroll(r.right - s.left + 8, r.bottom - s.top - h);
+  } else {
+    moverCinnamoroll(r.right - s.left - w, pistaPastel.getBoundingClientRect().bottom - s.top + 12);
+  }
+}
+
+function fuegoCinnamoroll() {
+  return puntoCinnamoroll(cinnamoroll.offsetWidth * FUEGO_CINNAMOROLL.x, cinnamoroll.offsetHeight * FUEGO_CINNAMOROLL.y);
+}
+
+// Prende las velas apagadas que la llama de Cinnamoroll tocó en su camino (de "desde" a "hasta")
+function revisarVelas(desde, hasta) {
+  const s = seccionPastel.getBoundingClientRect();
+  const r = pastel.getBoundingClientRect();
+  const alcance = Math.max(20, r.width * 0.065);
+  const pasos = Math.max(1, Math.ceil(Math.hypot(hasta.x - desde.x, hasta.y - desde.y) / (alcance / 2)));
+  velas.forEach((vela) => {
+    if (vela.encendida) return;
+    const x = r.left - s.left + (vela.x / PASTEL.ancho) * r.width;
+    const y = r.top - s.top + (vela.y / PASTEL.alto) * r.height;
+    for (let i = 1; i <= pasos; i++) {
+      const fx = desde.x + ((hasta.x - desde.x) * i) / pasos;
+      const fy = desde.y + ((hasta.y - desde.y) * i) / pasos;
+      if (Math.hypot(fx - x, fy - y) < alcance) {
+        prenderVela(vela);
+        return;
+      }
+    }
+  });
+}
+
+function prenderVela(vela) {
+  vela.encendida = true;
+  vela.el.classList.add("encendida");
+  if (velas.every((v) => v.encendida)) {
+    seccionPastel.classList.add("encendido");
+    pistaPastel.textContent = "¡Ahora pide un deseo!";
+  }
+}
+
+cinnamoroll.addEventListener("pointerdown", (e) => {
+  // Evita que el navegador empiece a seleccionar o arrastrar la imagen por su cuenta
+  e.preventDefault();
+  cinnamoroll.setPointerCapture(e.pointerId);
+  cinnamoroll.classList.add("agarrado");
+  const s = seccionPastel.getBoundingClientRect();
+
+  // Punto de la imagen (sin girar) que quedó bajo el dedo: desde ahí cuelga mientras se arrastra.
+  // Se cambia el eje del giro sin que Cinnamoroll salte de lugar.
+  const w = cinnamoroll.offsetWidth;
+  const h = cinnamoroll.offsetHeight;
+  const ox = w * pendulo.eje.x;
+  const oy = h * pendulo.eje.y;
+  const dx = e.clientX - s.left - posCinnamoroll.x - ox;
+  const dy = e.clientY - s.top - posCinnamoroll.y - oy;
+  const cos = Math.cos(pendulo.giro);
+  const sin = Math.sin(pendulo.giro);
+  const gx = ox + dx * cos + dy * sin;
+  const gy = oy - dx * sin + dy * cos;
+  pendulo.eje = { x: gx / w, y: gy / h };
+  posCinnamoroll = { x: e.clientX - s.left - gx, y: e.clientY - s.top - gy };
+  agarreCinnamoroll = { dx: gx, dy: gy };
+  colgarPeso();
+  dibujarCinnamoroll();
+  arrancarPendulo();
+});
+
+cinnamoroll.addEventListener("pointermove", (e) => {
+  if (!agarreCinnamoroll) return;
+  const s = seccionPastel.getBoundingClientRect();
+  cinnamorollMovido = true;
+  moverCinnamoroll(e.clientX - s.left - agarreCinnamoroll.dx, e.clientY - s.top - agarreCinnamoroll.dy);
+});
+
+function soltarCinnamoroll() {
+  agarreCinnamoroll = null;
+  cinnamoroll.classList.remove("agarrado");
+}
+
+cinnamoroll.addEventListener("pointerup", soltarCinnamoroll);
+cinnamoroll.addEventListener("pointercancel", soltarCinnamoroll);
+cinnamoroll.addEventListener("dragstart", (e) => e.preventDefault());
+
+// Con teclado se prende la siguiente vela apagada
+cinnamoroll.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") {
+    e.preventDefault();
+    const vela = velas.find((v) => !v.encendida);
+    if (vela) prenderVela(vela);
+  }
+});
+
+window.addEventListener("resize", colocarCinnamoroll);
 
 // ---------- Corazón de notas: se arma al bajar y cada nota se abre con un clic ----------
 
